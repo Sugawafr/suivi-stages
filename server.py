@@ -42,9 +42,19 @@ def course(pdf_bytes):
     if not dates:
         raise ValueError("Aucune date n'a été trouvée.")
     lines = [line.strip() for line in text.split("Directeur Administratif", 1)[0].split("\n") if line.strip()]
-    duration = re.search(r"durée de\s+(\d+(?:[.,]\d+)?)\s*heures", text, re.I)
+    duration = re.search(r"dur(?:ée|e)e?\s+de\s+(\d+(?:[.,]\d+)?)\s*heures?", text, re.I)
     iso = lambda date: "-".join(reversed(date.split("/")))
-    return {"name": lines[-1] if lines and 3 < len(lines[-1]) < 120 else "Stage importé", "start": iso(dates[0]), "end": iso(dates[1] if len(dates) > 1 else dates[0]), "notes": f"{duration.group(1).replace('.', ',')} h" if duration else ""}
+    notes = ""
+    if duration:
+        total_hours = float(duration.group(1).replace(",", "."))
+        # Une journée de formation Ford Academy correspond à 7 heures.
+        days = int(total_hours // 7)
+        hours = int(total_hours) if total_hours.is_integer() else total_hours
+        if days:
+            notes = f"{days} {'Jour' if days == 1 else 'Jours'} {hours:g}H"
+        else:
+            notes = f"{hours:g}H"
+    return {"name": lines[-1] if lines and 3 < len(lines[-1]) < 120 else "Stage importé", "start": iso(dates[0]), "end": iso(dates[1] if len(dates) > 1 else dates[0]), "notes": notes}
 
 class Handler(SimpleHTTPRequestHandler):
     def user(self):
