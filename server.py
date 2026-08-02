@@ -6,6 +6,7 @@ import cgi, hashlib, json, os, re, secrets, sqlite3, time
 
 ROOT = Path(__file__).resolve().parent
 DB = ROOT / "stages.db"
+ADMIN_EMAIL = os.environ.get("STAGE_ADMIN_EMAIL", "anthonygusatto@hotmail.com").lower()
 
 def db():
     connection = sqlite3.connect(DB); connection.row_factory = sqlite3.Row; return connection
@@ -43,10 +44,20 @@ class Handler(SimpleHTTPRequestHandler):
         user=self.user()
         if not user:self.json({"error":"Connexion requise."},401)
         return user
+    def is_admin(self, user): return bool(user and user["email"].lower()==ADMIN_EMAIL)
+    def admin_required(self):
+        user=self.authenticated()
+        if user and not self.is_admin(user): self.json({"error":"Accès administrateur requis."},403); return None
+        return user
     def do_GET(self):
         if self.path=="/api/me":
             user=self.authenticated()
-            if user:self.json(dict(user))
+            if user:self.json({**dict(user),"is_admin":self.is_admin(user)})
+        elif self.path=="/api/admin/users":
+            if self.admin_required():
+                with db() as c:
+                    rows=c.execute("SELECT users.id,users.email,COUNT(stages.id) AS stage_count FROM users LEFT JOIN stages ON stages.user_id=users.id GROUP BY users.id ORDER BY users.email").fetchall()
+                self.json([dict(row) for row in rows])
         elif self.path=="/api/stages":
             user=self.authenticated()
             if user:
@@ -84,6 +95,15 @@ class Handler(SimpleHTTPRequestHandler):
                     with db() as c:c.execute("INSERT INTO stages(user_id,name,status,start,end,notes) VALUES(?,?,?,?,?,?)",(user["id"],s["name"],s["status"],s["start"],s["end"],s.get("notes","") ))
                     self.json({"ok":True},201)
                 except Exception as error:self.json({"error":str(error)},400)
+        elif self.path.startswith("/api/admin/users/") and self.path.endswith("/password"):
+            user=self.admin_required();match=re.fullmatch(r"/api/admin/users/(\d+)/password",self.path)
+            if user and match:
+                try:
+                    password=self.read_json().get("password","")
+                    if len(password)<8: raise ValueError("Le mot de passe doit contenir 8 caractères minimum.")
+                    with db() as c:c.execute("UPDATE users SET password=? WHERE id=?",(hash_password(password),match[1]))
+                    self.json({"ok":True})
+                except Exception as error:self.json({"error":str(error)},400)
         else:self.send_error(404)
     def do_PUT(self):
         user=self.authenticated();match=re.fullmatch(r"/api/stages/(\d+)",self.path)
@@ -95,7 +115,14 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as error:self.json({"error":str(error)},400)
         elif user:self.send_error(404)
     def do_DELETE(self):
-        user=self.authenticated();match=re.fullmatch(r"/api/stages/(\d+)",self.path)
+        user=self.authenticated();admin_match=re.fullmatch(r"/api/admin/users/(\d+)",self.path);match=re.fullmatch(r"/api/stages/(\d+)",self.path)
+        if admin_match:
+            if user and self.is_admin(user):
+                if int(admin_match[1])==user["id"]:self.json({"error":"Tu ne peux pas supprimer ton propre compte administrateur."},400);return
+                with db() as c:
+                    c.execute("DELETE FROM sessions WHERE user_id=?",(admin_match[1],));c.execute("DELETE FROM stages WHERE user_id=?",(admin_match[1],));c.execute("DELETE FROM users WHERE id=?",(admin_match[1],))
+                self.json({"ok":True})
+            elif user:self.json({"error":"Accès administrateur requis."},403)
         if user and match:
             with db() as c:c.execute("DELETE FROM stages WHERE id=? AND user_id=?",(match[1],user["id"]))
             self.json({"ok":True})

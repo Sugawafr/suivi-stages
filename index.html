@@ -25,7 +25,7 @@
           <h1>Suivi de mes stages</h1>
           <p class="subtitle">Centralise tes formations, leur état et les périodes de paiement.</p>
         </div>
-        <div class="hero-actions"><span id="current-user"></span><button class="primary-button" id="add-stage" type="button">+ Ajouter un stage</button><button class="logout-button" id="logout" type="button">Déconnexion</button></div>
+        <div class="hero-actions"><span id="current-user"></span><button class="admin-button" id="admin-panel" type="button" hidden>Administration</button><button class="primary-button" id="add-stage" type="button">+ Ajouter un stage</button><button class="logout-button" id="logout" type="button">Déconnexion</button></div>
       </header>
 
       <section class="metrics" aria-label="Résumé des stages">
@@ -109,6 +109,17 @@
           <button class="primary-button" type="submit">Enregistrer</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="admin-dialog">
+      <div class="admin-dialog-content">
+        <div class="dialog-heading">
+          <div><p class="eyebrow">ADMINISTRATION</p><h2>Utilisateurs inscrits</h2></div>
+          <button class="icon-button" type="button" id="close-admin" aria-label="Fermer">×</button>
+        </div>
+        <p class="admin-status" id="admin-status" aria-live="polite"></p>
+        <div class="table-scroll admin-table"><table><thead><tr><th>Adresse e-mail</th><th>Stages</th><th>Actions</th></tr></thead><tbody id="users-body"></tbody></table></div>
+      </div>
     </dialog>
 
     <script src="app.js"></script>
