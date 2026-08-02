@@ -1,0 +1,5 @@
+stages.db
+stages.db-*
+__pycache__/
+.venv/
+*.pyc
