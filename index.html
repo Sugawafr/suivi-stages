@@ -1,127 +1,21 @@
 <!doctype html>
 <html lang="fr">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Suivi des stages Ford</title>
-    <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Suivi des stages Ford</title><link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <section class="auth-shell" id="auth-screen">
-      <form class="auth-card" id="auth-form">
-        <p class="eyebrow">FORD ACADEMY</p><h1 id="auth-title">Suivi de mes stages</h1>
-        <p class="subtitle" id="auth-description">Connecte-toi pour retrouver ton suivi personnel.</p>
-        <label>Adresse e-mail<input id="auth-email" type="email" required autocomplete="email" /></label>
-        <label>Mot de passe<input id="auth-password" type="password" required minlength="8" autocomplete="current-password" /></label>
-        <p class="import-status" id="auth-status" aria-live="polite"></p>
-        <button class="auth-submit" id="auth-submit" type="submit">Se connecter</button>
-        <button class="auth-toggle" id="auth-toggle" type="button">Je n’ai pas encore de compte</button>
-      </form>
-    </section>
+    <section class="auth-shell" id="auth-screen"><form class="auth-card" id="auth-form"><p class="eyebrow">FORD ACADEMY</p><h1 id="auth-title">Suivi de mes stages</h1><p class="subtitle" id="auth-description">Connecte-toi pour retrouver ton suivi personnel.</p><label>Adresse e-mail<input id="auth-email" type="email" required autocomplete="email" /></label><label>Mot de passe<input id="auth-password" type="password" required minlength="8" autocomplete="current-password" /></label><p class="import-status" id="auth-status" aria-live="polite"></p><button class="auth-submit" id="auth-submit" type="submit">Se connecter</button><button class="auth-toggle" id="auth-toggle" type="button">Je n’ai pas encore de compte</button></form></section>
     <main class="page-shell" id="app-screen" hidden>
-      <header class="hero">
-        <div>
-          <p class="eyebrow">FORD ACADEMY</p>
-          <h1>Suivi de mes stages</h1>
-          <p class="subtitle">Centralise tes formations, leur état et les périodes de paiement.</p>
-        </div>
-        <div class="hero-actions"><span id="current-user"></span><button class="admin-button" id="admin-panel" type="button" hidden>Administration</button><button class="primary-button" id="add-stage" type="button">+ Ajouter un stage</button><button class="logout-button" id="logout" type="button">Déconnexion</button></div>
-      </header>
-
-      <section class="metrics" aria-label="Résumé des stages">
-        <article><span>En cours de paiement</span><strong id="count-current">0</strong></article>
-        <article><span>Terminés</span><strong id="count-finished">0</strong></article>
-        <article><span>Pas commencés</span><strong id="count-not-started">0</strong></article>
-        <article><span>À régulariser</span><strong id="count-unpaid">0</strong></article>
-      </section>
-
-      <section class="toolbar" aria-label="Filtres">
-        <label>
-          Rechercher
-          <input id="search" type="search" placeholder="Nom du stage…" />
-        </label>
-        <label>
-          Afficher
-          <select id="filter-status">
-            <option value="">Tous les états</option>
-            <option>Terminé</option>
-            <option>En cours</option>
-            <option>Pas commencé</option>
-            <option>Pas payé</option>
-            <option>En cours de paiement</option>
-          </select>
-        </label>
-      </section>
-
-      <section class="table-card">
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Tâche</th>
-                <th>État</th>
-                <th>Début du stage</th>
-                <th>Fin du stage</th>
-                <th>Début de paiement</th>
-                <th>Fin de paiement</th>
-                <th>Notes</th>
-                <th aria-label="Actions"></th>
-              </tr>
-            </thead>
-            <tbody id="stages-body"></tbody>
-          </table>
-        </div>
-        <p class="empty-state" id="empty-state" hidden>Aucun stage ne correspond à la recherche.</p>
-      </section>
+      <header class="hero"><div><p class="eyebrow">FORD ACADEMY</p><h1>Suivi de mes stages</h1><p class="subtitle">Centralise tes formations, leur état et les périodes de paiement.</p></div><div class="hero-actions"><span id="current-user"></span><button class="admin-button" id="admin-panel" type="button" hidden>Administration</button><button class="admin-button" id="stats-panel" type="button">Statistiques</button><button class="admin-button" id="password-panel" type="button">Mot de passe</button><button class="primary-button" id="add-stage" type="button">+ Ajouter un stage</button><button class="logout-button" id="logout" type="button">Déconnexion</button></div></header>
+      <section class="metrics"><article><span>En cours de paiement</span><strong id="count-current">0</strong></article><article><span>Terminés</span><strong id="count-finished">0</strong></article><article><span>Pas commencés</span><strong id="count-not-started">0</strong></article><article><span>À régulariser</span><strong id="count-unpaid">0</strong></article></section>
+      <section class="toolbar" aria-label="Filtres"><label>Rechercher<input id="search" type="search" placeholder="Nom du stage…" /></label><label>Année<select id="filter-year"><option value="">Toutes</option><option>2024</option><option>2025</option><option>2026</option><option>2027</option></select></label><label>Du<input id="filter-from" type="date" /></label><label>Au<input id="filter-to" type="date" /></label><label>Afficher<select id="filter-status"><option value="">Tous les états</option><option>Terminé</option><option>En cours</option><option>Pas commencé</option><option>Pas payé</option><option>En cours de paiement</option></select></label><button class="secondary-button filter-button" id="clear-filters" type="button">Effacer</button></section>
+      <section class="table-card"><div class="table-scroll"><table><thead><tr><th>Tâche</th><th>État</th><th>Début du stage</th><th>Fin du stage</th><th>Début de paiement</th><th>Fin de paiement</th><th>Notes</th><th>Pièce jointe</th><th aria-label="Actions"></th></tr></thead><tbody id="stages-body"></tbody></table></div><p class="empty-state" id="empty-state" hidden>Aucun stage ne correspond à la recherche.</p></section>
     </main>
-
-    <dialog id="stage-dialog">
-      <form id="stage-form" method="dialog">
-        <div class="dialog-heading">
-          <div><p class="eyebrow">NOUVEAU DOSSIER</p><h2 id="dialog-title">Ajouter un stage</h2></div>
-          <button class="icon-button" type="button" id="close-dialog" aria-label="Fermer">×</button>
-        </div>
-        <input type="hidden" id="stage-id" />
-        <div class="pdf-import">
-          <div>
-            <strong>Importer la convocation PDF</strong>
-            <p>Le nom, les dates et la durée seront remplis automatiquement.</p>
-          </div>
-          <label class="file-button">Choisir un PDF<input id="stage-pdf" type="file" accept="application/pdf" /></label>
-          <p class="import-status" id="import-status" aria-live="polite"></p>
-        </div>
-        <label>Nom du stage<input id="stage-name" required maxlength="100" placeholder="Ex. Les nouvelles technologies" /></label>
-        <div class="two-columns">
-          <label>État
-            <select id="stage-status" required>
-              <option>Pas commencé</option><option>En cours</option><option>Terminé</option><option>Pas payé</option><option>En cours de paiement</option>
-            </select>
-          </label>
-          <label>Durée / notes<input id="stage-notes" maxlength="60" placeholder="Ex. 2 jours · 14 h" /></label>
-        </div>
-        <div class="two-columns">
-          <label>Début du stage<input id="stage-start" type="date" required /></label>
-          <label>Fin du stage<input id="stage-end" type="date" required /></label>
-        </div>
-        <p class="payment-hint" id="payment-hint">Les dates de paiement seront calculées automatiquement.</p>
-        <div class="dialog-actions">
-          <button class="secondary-button" type="button" id="cancel-dialog">Annuler</button>
-          <button class="primary-button" type="submit">Enregistrer</button>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="admin-dialog">
-      <div class="admin-dialog-content">
-        <div class="dialog-heading">
-          <div><p class="eyebrow">ADMINISTRATION</p><h2>Utilisateurs inscrits</h2></div>
-          <button class="icon-button" type="button" id="close-admin" aria-label="Fermer">×</button>
-        </div>
-        <p class="admin-status" id="admin-status" aria-live="polite"></p>
-        <div class="table-scroll admin-table"><table><thead><tr><th>Adresse e-mail</th><th>Stages</th><th>Actions</th></tr></thead><tbody id="users-body"></tbody></table></div>
-      </div>
-    </dialog>
-
+    <dialog id="stage-dialog"><form id="stage-form"><div class="dialog-heading"><div><p class="eyebrow">NOUVEAU DOSSIER</p><h2 id="dialog-title">Ajouter un stage</h2></div><button class="icon-button" type="button" id="close-dialog" aria-label="Fermer">×</button></div><input type="hidden" id="stage-id" /><div class="pdf-import"><div><strong>Importer la convocation PDF</strong><p>Le nom, les dates et la durée seront remplis automatiquement.</p></div><label class="file-button">Choisir un PDF<input id="stage-pdf" type="file" accept="application/pdf" /></label><p class="import-status" id="import-status" aria-live="polite"></p></div><label>Nom du stage<input id="stage-name" required maxlength="100" /></label><div class="two-columns"><label>État<select id="stage-status" required><option>Pas commencé</option><option>En cours</option><option>Terminé</option><option>Pas payé</option><option>En cours de paiement</option></select></label><label>Durée / notes<input id="stage-notes" maxlength="60" placeholder="Ex. 2 jours · 14 h" /></label></div><div class="two-columns"><label>Début du stage<input id="stage-start" type="date" required /></label><label>Fin du stage<input id="stage-end" type="date" required /></label></div><label>Photo ou pièce jointe (8 Mo maximum)<input id="stage-attachment" type="file" accept="image/*,application/pdf,.doc,.docx" /></label><p class="import-status" id="attachment-status" aria-live="polite"></p><p class="payment-hint">Les dates de paiement seront calculées automatiquement.</p><div class="dialog-actions"><button class="secondary-button" type="button" id="cancel-dialog">Annuler</button><button class="primary-button" type="submit">Enregistrer</button></div></form></dialog>
+    <dialog id="admin-dialog"><div class="admin-dialog-content"><div class="dialog-heading"><div><p class="eyebrow">ADMINISTRATION</p><h2>Utilisateurs inscrits</h2></div><button class="icon-button" type="button" id="close-admin" aria-label="Fermer">×</button></div><p class="admin-status" id="admin-status"></p><div class="table-scroll admin-table"><table><thead><tr><th>Adresse e-mail</th><th>Stages</th><th>Actions</th></tr></thead><tbody id="users-body"></tbody></table></div></div></dialog>
+    <dialog id="stats-dialog"><div class="dialog-content"><div class="dialog-heading"><div><p class="eyebrow">VUE D’ENSEMBLE</p><h2>Statistiques</h2></div><button class="icon-button" type="button" id="close-stats" aria-label="Fermer">×</button></div><section class="stats-grid"><article><span>Jours de formation</span><strong id="stats-days">0</strong></article><article><span>Stages terminés</span><strong id="stats-finished">0</strong></article><article><span>Stages enregistrés</span><strong id="stats-total">0</strong></article></section><p class="next-payment"><strong>Prochain début de paiement</strong><span id="stats-payment"></span></p></div></dialog>
+    <dialog id="password-dialog"><form id="password-form"><div class="dialog-heading"><div><p class="eyebrow">SÉCURITÉ</p><h2>Modifier mon mot de passe</h2></div><button class="icon-button" type="button" id="close-password" aria-label="Fermer">×</button></div><label>Mot de passe actuel<input id="current-password" type="password" required /></label><label>Nouveau mot de passe<input id="new-password" type="password" minlength="8" required /></label><label>Confirmer le nouveau mot de passe<input id="confirm-password" type="password" minlength="8" required /></label><p class="import-status" id="password-status"></p><div class="dialog-actions"><button class="primary-button" type="submit">Enregistrer</button></div></form></dialog>
     <script src="app.js"></script>
   </body>
 </html>
