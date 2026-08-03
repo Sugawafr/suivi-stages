@@ -38,23 +38,48 @@ def verify_password(password, stored):
 
 def course(pdf_bytes):
     text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf_bytes)).pages).replace("\r", "")
-    dates = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", text)
-    if not dates:
-        raise ValueError("Aucune date n'a été trouvée.")
+    month_numbers = {
+        "janvier": 1, "f\u00e9vrier": 2, "fevrier": 2, "mars": 3, "avril": 4,
+        "mai": 5, "juin": 6, "juillet": 7, "ao\u00fbt": 8, "aout": 8,
+        "septembre": 9, "octobre": 10, "novembre": 11, "d\u00e9cembre": 12, "decembre": 12,
+    }
+
+    def iso_numeric(value):
+        return "-".join(reversed(value.split("/")))
+
+    def iso_written(value):
+        day, month, year = re.fullmatch(r"(\d{1,2})\s+([A-Za-z\u00e9\u00e8\u00ea\u00eb\u00e0\u00e2\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7]+)\s+(\d{4})", value, re.I).groups()
+        return f"{year}-{month_numbers[month.lower()]:02d}-{int(day):02d}"
+
+    numeric_dates = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", text)
+    ford_match = re.search(
+        r"(?m)^\s*(?P<name>[^\n]{3,100}?)\s*-\s*De\s+\d{1,2}h\d{2}\s+\u00e0\s+\d{1,2}h\d{2}\s*\n"
+        r"\s*(?P<hours>\d+(?:[.,]\d+)?)\s*heures?\s+r\u00e9parties\s+sur\s+\d+\s+journ\u00e9e(?:s)?\s+le\s+"
+        r"(?P<date>\d{1,2}\s+[A-Za-z\u00e9\u00e8\u00ea\u00eb\u00e0\u00e2\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7]+\s+\d{4})",
+        text,
+        re.I,
+    )
+    if ford_match:
+        stage_date = iso_written(ford_match.group("date"))
+        total_hours = float(ford_match.group("hours").replace(",", "."))
+        return {"name": ford_match.group("name").strip(), "start": stage_date, "end": stage_date, "notes": f"{total_hours:g}H"}
+
+    if not numeric_dates:
+        raise ValueError("Aucune date n'a ete trouvee.")
     lines = [line.strip() for line in text.split("Directeur Administratif", 1)[0].split("\n") if line.strip()]
-    duration = re.search(r"dur(?:ée|e)e?\s+de\s+(\d+(?:[.,]\d+)?)\s*heures?", text, re.I)
-    iso = lambda date: "-".join(reversed(date.split("/")))
+    duration = re.search(r"dur(?:\u00e9e|e)e?\s+de\s+(\d+(?:[.,]\d+)?)\s*heures?", text, re.I)
     notes = ""
     if duration:
         total_hours = float(duration.group(1).replace(",", "."))
-        # Une journée de formation Ford Academy correspond à 7 heures.
         days = int(total_hours // 7)
-        hours = int(total_hours) if total_hours.is_integer() else total_hours
-        if days:
-            notes = f"{days} {'Jour' if days == 1 else 'Jours'} {hours:g}H"
-        else:
-            notes = f"{hours:g}H"
-    return {"name": lines[-1] if lines and 3 < len(lines[-1]) < 120 else "Stage importé", "start": iso(dates[0]), "end": iso(dates[1] if len(dates) > 1 else dates[0]), "notes": notes}
+        notes = f"{days} {'Jour' if days == 1 else 'Jours'} {total_hours:g}H" if days else f"{total_hours:g}H"
+    return {
+        "name": lines[-1] if lines and 3 < len(lines[-1]) < 120 else "Stage importe",
+        "start": iso_numeric(numeric_dates[0]),
+        "end": iso_numeric(numeric_dates[1] if len(numeric_dates) > 1 else numeric_dates[0]),
+        "notes": notes,
+    }
+
 
 class Handler(SimpleHTTPRequestHandler):
     def user(self):
