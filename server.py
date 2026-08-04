@@ -43,24 +43,40 @@ def course(pdf_bytes):
         "mai": 5, "juin": 6, "juillet": 7, "ao\u00fbt": 8, "aout": 8,
         "septembre": 9, "octobre": 10, "novembre": 11, "d\u00e9cembre": 12, "decembre": 12,
     }
+    month_pattern = r"[A-Za-z\u00e9\u00e8\u00ea\u00eb\u00e0\u00e2\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7]+"
 
     def iso_numeric(value):
         return "-".join(reversed(value.split("/")))
 
-    def iso_written(value):
-        day, month, year = re.fullmatch(r"(\d{1,2})\s+([A-Za-z\u00e9\u00e8\u00ea\u00eb\u00e0\u00e2\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7]+)\s+(\d{4})", value, re.I).groups()
+    def iso_date(day, month, year):
         return f"{year}-{month_numbers[month.lower()]:02d}-{int(day):02d}"
 
     numeric_dates = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", text)
+    range_match = re.search(
+        rf"(?m)^\s*(?P<name>[^\n]{{3,120}}?)\s*\n\s*(?P<hours>\d+(?:[.,]\d+)?)\s*heures?\s+"
+        rf"r\u00e9parties\s+sur\s+(?P<days>\d+)\s+journ\u00e9e(?:s)?\s+du\s+(?P<start>\d{{1,2}})\s+au\s+(?P<end>\d{{1,2}})\s+(?P<month>{month_pattern})\s+(?P<year>\d{{4}})",
+        text,
+        re.I,
+    )
+    if range_match:
+        total_hours = float(range_match.group("hours").replace(",", "."))
+        days = int(range_match.group("days"))
+        return {
+            "name": range_match.group("name").strip(),
+            "start": iso_date(range_match.group("start"), range_match.group("month"), range_match.group("year")),
+            "end": iso_date(range_match.group("end"), range_match.group("month"), range_match.group("year")),
+            "notes": f"{days} {'Jour' if days == 1 else 'Jours'} {total_hours:g}H",
+        }
+
     ford_match = re.search(
-        r"(?m)^\s*(?P<name>[^\n]{3,100}?)\s*-\s*De\s+\d{1,2}h\d{2}\s+\u00e0\s+\d{1,2}h\d{2}\s*\n"
-        r"\s*(?P<hours>\d+(?:[.,]\d+)?)\s*heures?\s+r\u00e9parties\s+sur\s+\d+\s+journ\u00e9e(?:s)?\s+le\s+"
-        r"(?P<date>\d{1,2}\s+[A-Za-z\u00e9\u00e8\u00ea\u00eb\u00e0\u00e2\u00ee\u00ef\u00f4\u00f6\u00f9\u00fb\u00fc\u00e7]+\s+\d{4})",
+        rf"(?m)^\s*(?P<name>[^\n]{{3,100}}?)\s*-\s*De\s+\d{{1,2}}h\d{{2}}\s+\u00e0\s+\d{{1,2}}h\d{{2}}\s*\n"
+        rf"\s*(?P<hours>\d+(?:[.,]\d+)?)\s*heures?\s+r\u00e9parties\s+sur\s+\d+\s+journ\u00e9e(?:s)?\s+le\s+"
+        rf"(?P<day>\d{{1,2}})\s+(?P<month>{month_pattern})\s+(?P<year>\d{{4}})",
         text,
         re.I,
     )
     if ford_match:
-        stage_date = iso_written(ford_match.group("date"))
+        stage_date = iso_date(ford_match.group("day"), ford_match.group("month"), ford_match.group("year"))
         total_hours = float(ford_match.group("hours").replace(",", "."))
         return {"name": ford_match.group("name").strip(), "start": stage_date, "end": stage_date, "notes": f"{total_hours:g}H"}
 
