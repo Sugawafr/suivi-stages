@@ -209,8 +209,8 @@ class Handler(SimpleHTTPRequestHandler):
                 try:
                     s = self.read_json()
                     with db() as c:
-                        c.execute("INSERT INTO stages(user_id,name,status,start,end,notes) VALUES(?,?,?,?,?,?)", (user["id"], s["name"], s["status"], s["start"], s["end"], s.get("notes", "")))
-                    self.json({"ok": True}, 201)
+                        created = c.execute("INSERT INTO stages(user_id,name,status,start,end,notes) VALUES(?,?,?,?,?,?)", (user["id"], s["name"], s["status"], s["start"], s["end"], s.get("notes", "")))
+                    self.json({"ok": True, "id": created.lastrowid}, 201)
                 except Exception as error:
                     self.json({"error": str(error)}, 400)
         elif self.path.startswith("/api/stages/") and self.path.endswith("/attachment"):
