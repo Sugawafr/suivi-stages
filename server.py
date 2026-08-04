@@ -98,6 +98,10 @@ def course(pdf_bytes):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store, max-age=0")
+        super().end_headers()
+
     def user(self):
         cookie = self.headers.get("Cookie", "")
         token = next((part.split("=", 1)[1] for part in cookie.split("; ") if part.startswith("stage_session=")), None)
