@@ -1,4 +1,4 @@
-let stages = [], currentUser = null, isRegister = false;
+let stages = [], currentUser = null, isRegister = false, recoveryState = { balance_half_days: 0, earned_half_days: 0, adjustment_half_days: 0 };
 const body = document.querySelector("#stages-body"), dialog = document.querySelector("#stage-dialog"), form = document.querySelector("#stage-form"), dateFormat = new Intl.DateTimeFormat("fr-FR");
 const api = async (path, options = {}) => { const response = await fetch(path, { cache:"no-store", credentials:"same-origin", headers:{"Content-Type":"application/json", ...(options.headers || {})}, ...options }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "Une erreur est survenue."); return data; };
 const addMonths = (dateString, months) => { const d = new Date(`${dateString}T12:00:00`); d.setMonth(d.getMonth() + months); return d; };
@@ -7,9 +7,74 @@ const showMonth = date => { const value = date instanceof Date ? date : new Date
 const badgeClass = status => ({"Terminé":"termine","Pas payé":"non-paye","Pas commencé":"pas-commence","En cours":"en-cours","En cours de paiement":"paiement"}[status] || "");
 const escapeHtml = value => { const node = document.createElement("div"); node.textContent = value; return node.innerHTML; };
 
-async function loadStages() { stages = await api("/api/stages"); render(); }
+async function loadStages() {
+  stages = await api("/api/stages");
+  render();
+  await loadRecovery();
+}
 function updateMetrics() { const count = value => stages.filter(stage => stage.status === value).length; document.querySelector("#count-current").textContent=count("En cours de paiement"); document.querySelector("#count-finished").textContent=count("Terminé"); document.querySelector("#count-not-started").textContent=count("Pas commencé"); document.querySelector("#count-unpaid").textContent=count("Pas payé"); }
-function updateCumulative() { const duration=notes=>{const match=String(notes||"").match(/(\d+(?:[.,]\d+)?)\s*h\b/i);return match?Number(match[1].replace(",", ".")):0;}; const today=new Date();today.setHours(0,0,0,0); const eligible=stages.filter(stage=>stage.status==="Pas payé"||stage.status==="Pas commencé").map(stage=>({...stage,hours:duration(stage.notes)})).filter(stage=>stage.hours>0&&stage.hours<18).sort((a,b)=>a.start.localeCompare(b.start)); const active=eligible.filter(stage=>addMonths(stage.start,12)>=today); const first=active[0], cycle=first?active.filter(stage=>addMonths(stage.start,0)<=addMonths(first.start,12)):[], total=cycle.reduce((sum,stage)=>sum+stage.hours,0), totalText=`${Number.isInteger(total)?total:total.toLocaleString("fr-FR")} h`, totalNode=document.querySelector("#cumul-total"), description=document.querySelector("#cumul-description"), bar=document.querySelector("#cumul-bar"), alert=document.querySelector("#cumul-alert"); totalNode.textContent=totalText; bar.style.width=`${Math.min(total/35*100,100)}%`; if(!first){description.textContent="Aucun stage de moins de 18 h à cumuler.";alert.hidden=true;return;} description.textContent=`${cycle.length} stage${cycle.length>1?"s":""} comptabilisé${cycle.length>1?"s":""} jusqu'au ${showDate(addMonths(first.start,12))}.`; if(total>35){alert.hidden=false;alert.classList.add("is-ready");alert.textContent=`Alerte : le cumul dépasse 35 h (${totalText}).`;}else{alert.hidden=true;alert.classList.remove("is-ready");} }
+function updateCumulative() {
+  const duration = notes => {
+    const match = String(notes || "").match(/(\d+(?:[.,]\d+)?)\s*h\b/i);
+    return match ? Number(match[1].replace(",", ".")) : 0;
+  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eligible = stages
+    .filter(stage => stage.status === "Pas payé" || stage.status === "Pas commencé")
+    .map(stage => ({ ...stage, hours: duration(stage.notes) }))
+    .filter(stage => stage.hours > 0 && stage.hours < 18)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const active = eligible.filter(stage => addMonths(stage.start, 12) >= today);
+  const first = active[0];
+  const cutoff = first ? addMonths(first.start, 12) : null;
+  const cycle = first ? active.filter(stage => addMonths(stage.start, 0) <= cutoff) : [];
+  const total = cycle.reduce((sum, stage) => sum + stage.hours, 0);
+  const formatted = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(total);
+  document.querySelector("#cumul-total").textContent = formatted + " h";
+  document.querySelector("#cumul-bar").style.width = Math.min(total / 35 * 100, 100) + "%";
+  const alert = document.querySelector("#cumul-alert");
+  if (total > 35) {
+    alert.hidden = false;
+    alert.textContent = "Alerte : le cumul dépasse 35 h (" + formatted + " h).";
+  } else {
+    alert.hidden = true;
+  }
+}
+function renderRecovery() {
+  const halfDays = recoveryState.balance_half_days || 0;
+  const days = halfDays / 2;
+  const amount = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(days);
+  document.querySelector("#recovery-total").textContent = amount + (days === 1 ? " jour" : " jours");
+  document.querySelector("#recovery-take").disabled = halfDays < 1;
+}
+async function loadRecovery() {
+  const status = document.querySelector("#recovery-status");
+  try {
+    recoveryState = await api("/api/recovery");
+    renderRecovery();
+    status.hidden = true;
+  } catch (error) {
+    status.textContent = error.message;
+    status.hidden = false;
+  }
+}
+async function changeRecovery(action) {
+  const buttons = [document.querySelector("#recovery-add"), document.querySelector("#recovery-take")];
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    recoveryState = await api("/api/recovery", { method: "POST", body: JSON.stringify({ action }) });
+    renderRecovery();
+    document.querySelector("#recovery-status").hidden = true;
+  } catch (error) {
+    const status = document.querySelector("#recovery-status");
+    status.textContent = error.message;
+    status.hidden = false;
+  } finally {
+    buttons.forEach(button => { button.disabled = false; });
+    renderRecovery();
+  }
+}
 function visibleStages() { const term=document.querySelector("#search").value.trim().toLowerCase(), status=document.querySelector("#filter-status").value, start=document.querySelector("#filter-from").value, end=document.querySelector("#filter-to").value, year=document.querySelector("#filter-year").value; return stages.filter(s=>s.name.toLowerCase().includes(term)&&(!status||s.status===status)&&(!start||s.start>=start)&&(!end||s.start<=end)&&(!year||s.start.startsWith(year))); }
 function render() { const displayed=visibleStages(); body.innerHTML=displayed.map(s=>`<tr><td class="stage-name">${escapeHtml(s.name)}</td><td><span class="badge ${badgeClass(s.status)}">${escapeHtml(s.status)}</span></td><td class="date">${showDate(s.start)}</td><td class="date">${showDate(s.end)}</td><td class="date">${showMonth(addMonths(s.start,1))}</td><td class="date">${showMonth(addMonths(s.start,7))}</td><td class="notes">${escapeHtml(s.notes||"—")}</td><td>${s.attachment?`<a class="attachment-link" href="${encodeURI(s.attachment)}" target="_blank" rel="noopener">Ouvrir</a>`:"—"}</td><td><div class="row-actions"><button class="small-button" data-edit="${s.id}">Modifier</button><button class="small-button danger" data-delete="${s.id}">Supprimer</button></div></td></tr>`).join(""); document.querySelector("#empty-state").hidden=displayed.length!==0; updateMetrics(); updateCumulative(); }
 function openForm(stage) { form.reset(); document.querySelector("#import-status").textContent=""; document.querySelector("#attachment-status").textContent=""; document.querySelector("#stage-id").value=stage?.id||""; document.querySelector("#dialog-title").textContent=stage?"Modifier le stage":"Ajouter un stage"; if(stage) for(const [key,id] of [["name","stage-name"],["status","stage-status"],["start","stage-start"],["end","stage-end"],["notes","stage-notes"]]) document.querySelector(`#${id}`).value=stage[key]; dialog.showModal(); }
@@ -29,4 +94,8 @@ document.querySelector("#users-body").addEventListener("click",async e=>{const i
 document.querySelector("#stage-pdf").addEventListener("change",async e=>{const file=e.target.files[0];if(!file)return;const message=document.querySelector("#import-status");message.textContent="Lecture du PDF...";try{const data=new FormData();data.append("pdf",file);const r=await fetch("/api/extract-pdf",{method:"POST",body:data,cache:"no-store"});const x=await r.json();if(!r.ok)throw new Error(x.error);for(const [key,id]of[["name","stage-name"],["start","stage-start"],["end","stage-end"],["notes","stage-notes"]])document.querySelector(`#${id}`).value=x[key]||"";message.className="import-status success";message.textContent="PDF lu : verifie puis enregistre.";}catch(error){message.className="import-status error";message.textContent=error.message;}});
 form.addEventListener("submit",async e=>{e.preventDefault();const id=document.querySelector("#stage-id").value;const stage={name:document.querySelector("#stage-name").value.trim(),status:document.querySelector("#stage-status").value,start:document.querySelector("#stage-start").value,end:document.querySelector("#stage-end").value,notes:document.querySelector("#stage-notes").value.trim()};if(stage.end<stage.start)return alert("La date de fin doit \u00eatre post\u00e9rieure au d\u00e9but.");const endpoint=id?`/api/stages/${id}`:"/api/stages";const saved=await api(endpoint,{method:id?"PUT":"POST",body:JSON.stringify(stage)});if(!id&&saved.id)await uploadAttachment(saved.id);else if(id)await uploadAttachment(id);dialog.close();await loadStages();});
 document.querySelector("#password-form").addEventListener("submit",async e=>{e.preventDefault();const status=document.querySelector("#password-status"),current_password=document.querySelector("#current-password").value,new_password=document.querySelector("#new-password").value,confirm_password=document.querySelector("#confirm-password").value;if(new_password!==confirm_password){status.className="import-status error";status.textContent="Les nouveaux mots de passe ne correspondent pas.";return;}try{await api("/api/password",{method:"POST",body:JSON.stringify({current_password,new_password})});status.className="import-status success";status.textContent="Mot de passe modifié.";e.target.reset();}catch(error){status.className="import-status error";status.textContent=error.message;}});
+document.querySelector("#rules-panel").addEventListener("click", () => document.querySelector("#rules-dialog").showModal());
+document.querySelector("#close-rules").addEventListener("click", () => document.querySelector("#rules-dialog").close());
+document.querySelector("#recovery-add").addEventListener("click", () => changeRecovery("add"));
+document.querySelector("#recovery-take").addEventListener("click", () => changeRecovery("take"));
 session();

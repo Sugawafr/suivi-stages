@@ -22,10 +22,23 @@ def setup():
         CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,email TEXT UNIQUE NOT NULL,password TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id INTEGER NOT NULL,expires INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS stages(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL,start TEXT NOT NULL,end TEXT NOT NULL,notes TEXT NOT NULL DEFAULT '',attachment TEXT NOT NULL DEFAULT '');
+        CREATE TABLE IF NOT EXISTS recovery_adjustments(user_id INTEGER PRIMARY KEY,half_days INTEGER NOT NULL DEFAULT 0);
         """)
         columns = [row[1] for row in c.execute("PRAGMA table_info(stages)")]
         if "attachment" not in columns:
             c.execute("ALTER TABLE stages ADD COLUMN attachment TEXT NOT NULL DEFAULT ''")
+
+def stage_hours(notes):
+    match = re.search(r"(\d+(?:[.,]\d+)?)\s*h\b", str(notes or ""), re.I)
+    return float(match.group(1).replace(",", ".")) if match else 0
+
+def recovery_balance(c, user_id):
+    today = time.strftime("%Y-%m-%d", time.localtime())
+    stages = c.execute("SELECT end,notes FROM stages WHERE user_id=?", (user_id,)).fetchall()
+    earned = sum(1 for stage in stages if stage["end"] <= today and stage_hours(stage["notes"]) >= 7)
+    row = c.execute("SELECT half_days FROM recovery_adjustments WHERE user_id=?", (user_id,)).fetchone()
+    adjustment = row["half_days"] if row else 0
+    return {"earned_half_days": earned, "adjustment_half_days": adjustment, "balance_half_days": max(0, earned + adjustment)}
 
 def hash_password(password, salt=None):
     salt = salt or secrets.token_bytes(16)
@@ -150,6 +163,13 @@ class Handler(SimpleHTTPRequestHandler):
                 with db() as c:
                     rows = c.execute("SELECT id,name,status,start,end,notes,attachment FROM stages WHERE user_id=? ORDER BY start", (user["id"],)).fetchall()
                 self.json([dict(row) for row in rows])
+        elif self.path == "/api/recovery":
+            user = self.authenticated()
+            if user:
+                with db() as c:
+                    c.execute("INSERT OR IGNORE INTO recovery_adjustments(user_id,half_days) VALUES(?,0)", (user["id"],))
+                    balance = recovery_balance(c, user["id"])
+                self.json(balance)
         elif self.path == "/api/admin/users":
             if self.admin_required():
                 with db() as c:
@@ -215,6 +235,24 @@ class Handler(SimpleHTTPRequestHandler):
                     with db() as c:
                         created = c.execute("INSERT INTO stages(user_id,name,status,start,end,notes) VALUES(?,?,?,?,?,?)", (user["id"], s["name"], s["status"], s["start"], s["end"], s.get("notes", "")))
                     self.json({"ok": True, "id": created.lastrowid}, 201)
+                except Exception as error:
+                    self.json({"error": str(error)}, 400)
+        elif self.path == "/api/recovery":
+            user = self.authenticated()
+            if user:
+                try:
+                    action = self.read_json().get("action")
+                    if action not in ("add", "take"):
+                        raise ValueError("Action de récupération inconnue.")
+                    with db() as c:
+                        c.execute("INSERT OR IGNORE INTO recovery_adjustments(user_id,half_days) VALUES(?,0)", (user["id"],))
+                        balance = recovery_balance(c, user["id"])
+                        if action == "take" and balance["balance_half_days"] < 1:
+                            raise ValueError("Aucune demi-journée de récupération disponible.")
+                        change = 1 if action == "add" else -1
+                        c.execute("UPDATE recovery_adjustments SET half_days=half_days+? WHERE user_id=?", (change, user["id"]))
+                        balance = recovery_balance(c, user["id"])
+                    self.json(balance)
                 except Exception as error:
                     self.json({"error": str(error)}, 400)
         elif self.path.startswith("/api/stages/") and self.path.endswith("/attachment"):
@@ -284,6 +322,7 @@ class Handler(SimpleHTTPRequestHandler):
                     attachments = c.execute("SELECT attachment FROM stages WHERE user_id=?", (admin_match[1],)).fetchall()
                     c.execute("DELETE FROM sessions WHERE user_id=?", (admin_match[1],))
                     c.execute("DELETE FROM stages WHERE user_id=?", (admin_match[1],))
+                    c.execute("DELETE FROM recovery_adjustments WHERE user_id=?", (admin_match[1],))
                     c.execute("DELETE FROM users WHERE id=?", (admin_match[1],))
                 for attachment in attachments:
                     if attachment["attachment"]:
