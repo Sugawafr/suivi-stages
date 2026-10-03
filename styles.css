@@ -78,3 +78,5 @@ td { padding:10px 12px; font-size:.77rem; }.stage-name { min-width:220px; }.badg
 .rules-list li::before { position:absolute; top:12px; left:14px; display:grid; width:28px; height:28px; place-items:center; border-radius:9px; color:var(--purple); background:#f0ebfa; content:counter(rule); font-size:.75rem; font-weight:850; }
 .rules-list li { counter-increment:rule; }
 #rules-dialog { width:min(680px,calc(100% - 28px)); max-height:calc(100vh - 32px); overflow-y:auto; }
+.cumul-edit-button { display:grid; width:24px; height:24px; flex:0 0 24px; place-items:center; margin-left:4px; padding:0; border:1px solid #d8e3ef; border-radius:7px; color:#36597d; background:#fff; font-size:.8rem; line-height:1; }
+.cumul-edit-button:hover { color:var(--navy); background:#eaf2fb; }

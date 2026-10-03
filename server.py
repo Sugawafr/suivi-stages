@@ -23,6 +23,7 @@ def setup():
         CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id INTEGER NOT NULL,expires INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS stages(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,name TEXT NOT NULL,status TEXT NOT NULL,start TEXT NOT NULL,end TEXT NOT NULL,notes TEXT NOT NULL DEFAULT '',attachment TEXT NOT NULL DEFAULT '');
         CREATE TABLE IF NOT EXISTS recovery_adjustments(user_id INTEGER PRIMARY KEY,half_days INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS cumulative_adjustments(user_id INTEGER PRIMARY KEY,adjustment_hours REAL NOT NULL DEFAULT 0);
         """)
         columns = [row[1] for row in c.execute("PRAGMA table_info(stages)")]
         if "attachment" not in columns:
@@ -170,6 +171,12 @@ class Handler(SimpleHTTPRequestHandler):
                     c.execute("INSERT OR IGNORE INTO recovery_adjustments(user_id,half_days) VALUES(?,0)", (user["id"],))
                     balance = recovery_balance(c, user["id"])
                 self.json(balance)
+        elif self.path == "/api/cumulative-adjustment":
+            user = self.authenticated()
+            if user:
+                with db() as c:
+                    row = c.execute("SELECT adjustment_hours FROM cumulative_adjustments WHERE user_id=?", (user["id"],)).fetchone()
+                self.json({"adjustment_hours": row["adjustment_hours"] if row else 0})
         elif self.path == "/api/admin/users":
             if self.admin_required():
                 with db() as c:
@@ -255,6 +262,18 @@ class Handler(SimpleHTTPRequestHandler):
                     self.json(balance)
                 except Exception as error:
                     self.json({"error": str(error)}, 400)
+        elif self.path == "/api/cumulative-adjustment":
+            user = self.authenticated()
+            if user:
+                try:
+                    adjustment = float(self.read_json().get("adjustment_hours"))
+                    if not (float("-inf") < adjustment < float("inf")) or abs(adjustment) > 10000:
+                        raise ValueError("L’ajustement doit être un nombre valide inférieur à 10 000 h.")
+                    with db() as c:
+                        c.execute("INSERT INTO cumulative_adjustments(user_id,adjustment_hours) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET adjustment_hours=excluded.adjustment_hours", (user["id"], adjustment))
+                    self.json({"adjustment_hours": adjustment})
+                except (TypeError, ValueError) as error:
+                    self.json({"error": str(error) or "Saisis un nombre d’heures valide."}, 400)
         elif self.path.startswith("/api/stages/") and self.path.endswith("/attachment"):
             user = self.authenticated()
             match = re.fullmatch(r"/api/stages/(\d+)/attachment", self.path)
@@ -323,6 +342,7 @@ class Handler(SimpleHTTPRequestHandler):
                     c.execute("DELETE FROM sessions WHERE user_id=?", (admin_match[1],))
                     c.execute("DELETE FROM stages WHERE user_id=?", (admin_match[1],))
                     c.execute("DELETE FROM recovery_adjustments WHERE user_id=?", (admin_match[1],))
+                    c.execute("DELETE FROM cumulative_adjustments WHERE user_id=?", (admin_match[1],))
                     c.execute("DELETE FROM users WHERE id=?", (admin_match[1],))
                 for attachment in attachments:
                     if attachment["attachment"]:

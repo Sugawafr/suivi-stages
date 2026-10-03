@@ -1,4 +1,4 @@
-let stages = [], currentUser = null, isRegister = false, recoveryState = { balance_half_days: 0, earned_half_days: 0, adjustment_half_days: 0 };
+let stages = [], currentUser = null, isRegister = false, recoveryState = { balance_half_days: 0, earned_half_days: 0, adjustment_half_days: 0 }, cumulativeAdjustment = 0;
 const body = document.querySelector("#stages-body"), dialog = document.querySelector("#stage-dialog"), form = document.querySelector("#stage-form"), dateFormat = new Intl.DateTimeFormat("fr-FR");
 const api = async (path, options = {}) => { const response = await fetch(path, { cache:"no-store", credentials:"same-origin", headers:{"Content-Type":"application/json", ...(options.headers || {})}, ...options }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "Une erreur est survenue."); return data; };
 const addMonths = (dateString, months) => { const d = new Date(`${dateString}T12:00:00`); d.setMonth(d.getMonth() + months); return d; };
@@ -10,10 +10,11 @@ const escapeHtml = value => { const node = document.createElement("div"); node.t
 async function loadStages() {
   stages = await api("/api/stages");
   render();
+  await loadCumulativeAdjustment();
   await loadRecovery();
 }
 function updateMetrics() { const count = value => stages.filter(stage => stage.status === value).length; document.querySelector("#count-current").textContent=count("En cours de paiement"); document.querySelector("#count-finished").textContent=count("Terminé"); document.querySelector("#count-not-started").textContent=count("Pas commencé"); document.querySelector("#count-unpaid").textContent=count("Pas payé"); }
-function updateCumulative() {
+function automaticCumulative() {
   const duration = notes => {
     const match = String(notes || "").match(/(\d+(?:[.,]\d+)?)\s*h\b/i);
     return match ? Number(match[1].replace(",", ".")) : 0;
@@ -29,7 +30,10 @@ function updateCumulative() {
   const first = active[0];
   const cutoff = first ? addMonths(first.start, 12) : null;
   const cycle = first ? active.filter(stage => addMonths(stage.start, 0) <= cutoff) : [];
-  const total = cycle.reduce((sum, stage) => sum + stage.hours, 0);
+  return cycle.reduce((sum, stage) => sum + stage.hours, 0);
+}
+function updateCumulative() {
+  const total = Math.max(0, automaticCumulative() + cumulativeAdjustment);
   const formatted = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(total);
   document.querySelector("#cumul-total").textContent = formatted + " h";
   document.querySelector("#cumul-bar").style.width = Math.min(total / 35 * 100, 100) + "%";
@@ -39,6 +43,47 @@ function updateCumulative() {
     alert.textContent = "Alerte : le cumul dépasse 35 h (" + formatted + " h).";
   } else {
     alert.hidden = true;
+  }
+}
+async function loadCumulativeAdjustment() {
+  try {
+    const data = await api("/api/cumulative-adjustment");
+    cumulativeAdjustment = Number(data.adjustment_hours) || 0;
+    updateCumulative();
+  } catch (error) {
+    const alert = document.querySelector("#cumul-alert");
+    alert.hidden = false;
+    alert.textContent = "Impossible de charger le réglage manuel du cumul : " + error.message;
+  }
+}
+function openCumulativeEditor() {
+  const total = Math.max(0, automaticCumulative() + cumulativeAdjustment);
+  document.querySelector("#cumul-hours").value = Number(total.toFixed(2));
+  document.querySelector("#cumul-edit-status").textContent = "";
+  document.querySelector("#cumul-edit-dialog").showModal();
+}
+async function saveCumulativeEdit(event) {
+  event.preventDefault();
+  const input = document.querySelector("#cumul-hours");
+  const status = document.querySelector("#cumul-edit-status");
+  const button = document.querySelector("#save-cumul-edit");
+  const desired = Number(input.value);
+  if (!Number.isFinite(desired) || desired < 0 || desired > 10000) {
+    status.className = "import-status error";
+    status.textContent = "Saisis une valeur entre 0 et 10 000 heures.";
+    return;
+  }
+  button.disabled = true;
+  try {
+    const data = await api("/api/cumulative-adjustment", { method:"POST", body:JSON.stringify({ adjustment_hours: desired - automaticCumulative() }) });
+    cumulativeAdjustment = Number(data.adjustment_hours) || 0;
+    updateCumulative();
+    document.querySelector("#cumul-edit-dialog").close();
+  } catch (error) {
+    status.className = "import-status error";
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
   }
 }
 function renderRecovery() {
@@ -96,6 +141,9 @@ form.addEventListener("submit",async e=>{e.preventDefault();const id=document.qu
 document.querySelector("#password-form").addEventListener("submit",async e=>{e.preventDefault();const status=document.querySelector("#password-status"),current_password=document.querySelector("#current-password").value,new_password=document.querySelector("#new-password").value,confirm_password=document.querySelector("#confirm-password").value;if(new_password!==confirm_password){status.className="import-status error";status.textContent="Les nouveaux mots de passe ne correspondent pas.";return;}try{await api("/api/password",{method:"POST",body:JSON.stringify({current_password,new_password})});status.className="import-status success";status.textContent="Mot de passe modifié.";e.target.reset();}catch(error){status.className="import-status error";status.textContent=error.message;}});
 document.querySelector("#rules-panel").addEventListener("click", () => document.querySelector("#rules-dialog").showModal());
 document.querySelector("#close-rules").addEventListener("click", () => document.querySelector("#rules-dialog").close());
+document.querySelector("#edit-cumul").addEventListener("click", openCumulativeEditor);
+document.querySelector("#close-cumul-edit").addEventListener("click", () => document.querySelector("#cumul-edit-dialog").close());
+document.querySelector("#cumul-edit-form").addEventListener("submit", saveCumulativeEdit);
 document.querySelector("#recovery-add").addEventListener("click", () => changeRecovery("add"));
 document.querySelector("#recovery-take").addEventListener("click", () => changeRecovery("take"));
 session();
